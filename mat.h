@@ -99,8 +99,8 @@ void buildTextures(MdnTexture* texture, int32_t numTexture, noeRAPI_t* rapi, uin
 
     for (int i = 0; i < numTexture; i++) {
         uint32_t strcode = _byteswap_ulong(texture[i].strcode);
-        std::string texStr = intToHexString(strcode);
-        char texName[7];
+        std::string texStr = intToHexString(strcode) + ".tga";
+        char texName[11];
         strcpy_s(texName, texStr.c_str());
 
         noesisTex_t* noeTexture = loadTexture(rapi, strcode, txnStrcode, dldInfo);

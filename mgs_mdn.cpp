@@ -43,10 +43,11 @@ noesisModel_t* loadMDN(BYTE* fileBuffer, int bufferLen, int& numMdl, noeRAPI_t* 
 
     for (int i = 0; i < numMesh; i++) {
         std::vector<float> normals;
+        std::vector<float> tangents;
         std::vector<float> weights;
         std::vector<uint8_t> bones;
 
-        bindMesh(&mesh[i], skin, group, &vertexDefinition[i], vertexBuffer, rapi, normals, weights, bones);
+        bindMesh(&mesh[i], skin, group, &vertexDefinition[i], vertexBuffer, rapi, normals, weights, tangents, bones);
         bindFace(&mesh[i], face, faceBuffer, rapi);
 
         rapi->rpgClearBufferBinds();
