@@ -11,37 +11,38 @@ bool checkMDN(BYTE* fileBuffer, int bufferLen, noeRAPI_t* rapi) {
 noesisModel_t* loadMDN(BYTE* fileBuffer, int bufferLen, int& numMdl, noeRAPI_t* rapi) {
     void* ctx = rapi->rpgCreateContext();
     rapi->rpgSetTriWinding(1);
-    rapi->rpgSetEndian(1);
 
     MdnHeader*   header       = (MdnHeader*   )fileBuffer;
-    MdnBone*     bones        = (MdnBone*    )&fileBuffer[_byteswap_ulong(header->boneOffset)];
-    MdnMesh*     mesh         = (MdnMesh*    )&fileBuffer[_byteswap_ulong(header->meshOffset)];
-    MdnFace*     face         = (MdnFace*    )&fileBuffer[_byteswap_ulong(header->faceOffset)];
-    MdnSkin*     skin         = (MdnSkin*    )&fileBuffer[_byteswap_ulong(header->skinOffset)];
-    MdnGroup*    group        = (MdnGroup*   )&fileBuffer[_byteswap_ulong(header->groupOffset)];
-    MdnTexture*  texture      = (MdnTexture* )&fileBuffer[_byteswap_ulong(header->textureOffset)];
-    MdnMaterial* material     = (MdnMaterial*)&fileBuffer[_byteswap_ulong(header->materialOffset)];
-    uint8_t*     faceBuffer   = (uint8_t*    )&fileBuffer[_byteswap_ulong(header->faceBufferOffset)];
-    uint8_t*     vertexBuffer = (uint8_t*    )&fileBuffer[_byteswap_ulong(header->vertexBufferOffset)];
-    MdnVertexDefinition* vertexDefinition = (MdnVertexDefinition*)&fileBuffer[_byteswap_ulong(header->vertexDefinitionOffset)];
 
-    int32_t numMesh  = _byteswap_ulong(header->numMesh );
-    int32_t numBones = _byteswap_ulong(header->numBones);
+    bool isBigEndian = header->fileSize != bufferLen;
+    if (isBigEndian) swapEndianMDN(fileBuffer);
 
-    modelBone_t* noeBones = (numBones) ? bindBones(bones, numBones, rapi) : NULL;
+    MdnBone*     bones        = (MdnBone*    )&fileBuffer[header->boneOffset];
+    MdnMesh*     mesh         = (MdnMesh*    )&fileBuffer[header->meshOffset];
+    MdnFace*     face         = (MdnFace*    )&fileBuffer[header->faceOffset];
+    MdnSkin*     skin         = (MdnSkin*    )&fileBuffer[header->skinOffset];
+    MdnGroup*    group        = (MdnGroup*   )&fileBuffer[header->groupOffset];
+    MdnTexture*  texture      = (MdnTexture* )&fileBuffer[header->textureOffset];
+    MdnMaterial* material     = (MdnMaterial*)&fileBuffer[header->materialOffset];
+    uint8_t*     faceBuffer   = (uint8_t*    )&fileBuffer[header->faceBufferOffset];
+    uint8_t*     vertexBuffer = (uint8_t*    )&fileBuffer[header->vertexBufferOffset];
+
+    MdnVertexDefinition* vertexDefinition = (MdnVertexDefinition*)&fileBuffer[header->vertexDefinitionOffset];
+
+    modelBone_t* noeBones = header->numBones ? bindBones(bones, header->numBones, rapi) : NULL;
 
     std::vector<DldInfo> dldInfo; 
-    cacheDelayload(rapi, dldInfo);
+    cacheDelayload(rapi, dldInfo, isBigEndian);
 
     CArrayList<noesisTex_t*>      texList; 
     CArrayList<noesisMaterial_t*> matList; 
     std::vector<uint32_t>         normalMaps;
 
-    buildTextures(texture, _byteswap_ulong(header->numTexture), rapi, header->filename, dldInfo, texList);
-    buildMaterials(material, _byteswap_ulong(header->numMaterial), rapi, matList, normalMaps);
+    buildTextures(texture, header->numTexture, rapi, header->filename, dldInfo, texList, isBigEndian);
+    buildMaterials(material, header->numMaterial, rapi, matList, normalMaps);
     decompNormals(normalMaps, texList);
 
-    for (int i = 0; i < numMesh; i++) {
+    for (int i = 0; i < header->numMesh; i++) {
         std::vector<float> normals;
         std::vector<float> tangents;
         std::vector<float> weights;
@@ -56,17 +57,15 @@ noesisModel_t* loadMDN(BYTE* fileBuffer, int bufferLen, int& numMdl, noeRAPI_t* 
     noesisMatData_t* md = rapi->Noesis_GetMatDataFromLists(matList, texList);
     rapi->rpgSetExData_Materials(md);
 
-    if (g_mgs4MtarPrompt && numBones) {
+    if (g_mgs4MtarPrompt && header->numBones) {
         BYTE* motionFile = openMotion(rapi);
-        if (motionFile) loadMotion(rapi, motionFile, noeBones, numBones);
+        if (motionFile) loadMotion(rapi, motionFile, noeBones, header->numBones);
     }
 
     noesisModel_t* mdl = rapi->rpgConstructModel();
     if (mdl) numMdl = 1;
 
-    for (int i = 0; i < dldInfo.size(); i++) {
-        delete[] dldInfo[i].dld;
-    }
+    deleteCache(dldInfo);
 
     rapi->rpgDestroyContext(ctx);
     return mdl;

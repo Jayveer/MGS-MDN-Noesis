@@ -1,4 +1,6 @@
 #pragma once
+#include <vector>
+#include <algorithm>
 #include <inttypes.h>
 
 #include "../../common/util.h"
@@ -40,7 +42,7 @@ enum eDefinition {
 	NORMAL,
 	COLOUR,
 	UNKNOWNA,
-	UNKNOWNB,
+	TEXTURE3DS,
 	UNKNOWNC,
 	BONEIDX,
 	TEXTURE00,
@@ -51,7 +53,23 @@ enum eDefinition {
 	TEXTURE05,
 	TANGENT
 };
-
+/*
+enum eDefinitionMGS3D {
+	POSITION,
+	WEIGHT,
+	BONEIDX,
+	COLOUR,
+	UNKNOWNA,
+	UNKNOWNB,
+	TEXTURE00,
+	TEXTURE01,
+	TEXTURE02,
+	TEXTURE03,
+	TEXTURE04,
+	TEXTURE05,
+	TANGENT
+};
+*/
 struct MdnHeader {
 	uint32_t magic;
 	uint32_t filename;
@@ -156,3 +174,5 @@ struct MdnSkin {
 	uint16_t nullBytes;
 	uint8_t boneId[32];
 };
+
+extern void swapEndianMDN(uint8_t* mdn);

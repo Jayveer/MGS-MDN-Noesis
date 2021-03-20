@@ -2,34 +2,52 @@
 
 Dlz::Dlz(std::string filename) {
 	this->filename = filename;
+	setEndian();
 }
 
 Dlz::~Dlz() {
+}
+
+void Dlz::setEndian() {
+	std::ifstream dlz;
+	dlz.open(filename, std::ios::binary);
+	uint32_t magic = peekMagic(dlz);
+	isBigEndian = magic == 0x73676573;
+	dlz.close();
 }
 
 void Dlz::setRapi(noeRAPI_t* rapi) {
 	this->rapi = rapi;
 }
 
+void Dlz::swapDlzHeader(SegHeader* header) {
+	genericSwap(header,                    1, 4);
+	genericSwap(&header->flag,             2, 2);
+	genericSwap(&header->decompressedSize, 1, 4);
+
+	for (int i = 0; i < header->numChunks; i++) {
+		genericSwap(&header->table[i].compressedSize, 2, 2);
+		genericSwap(&header->table[i].offset        , 1, 4);
+	}
+}
+
 void Dlz::decompressSeg(uint8_t* seg, uint8_t* dst, int& size) {
 	SegHeader* header = (SegHeader*)seg;
-	uint16_t numChunks = _byteswap_ushort(header->numChunks);
-	uint32_t decompressedSize = _byteswap_ulong(header->decompressedSize);
+	if (isBigEndian) swapDlzHeader(header);
 
 	int pos = 0;
 
-	for (int i = 0; i < numChunks; i++) {
-		uint32_t offset = _byteswap_ulong(header->table[i].offset) - 1;
-		uint16_t chunkCompressedSize = _byteswap_ushort(header->table[i].compressedSize);
-		uint16_t chunkDecompressedSize = _byteswap_ushort(header->table[i].decompressedSize);
+	for (int i = 0; i < header->numChunks; i++) {
+		uint32_t offset = header->table[i].offset - 1;
+		uint16_t chunkCompressedSize = header->table[i].compressedSize;
+		uint16_t chunkDecompressedSize = header->table[i].decompressedSize;
 
-		int size;
 		rapi->Decomp_Inflate2(&seg[offset], &dst[pos], chunkCompressedSize, chunkDecompressedSize, -15);
 
 		pos += chunkDecompressedSize;
 	}
 
-	size = decompressedSize;
+	size = header->decompressedSize;
 }
 
 uint32_t Dlz::peekMagic(std::ifstream& ifs) {
@@ -40,7 +58,8 @@ uint32_t Dlz::peekMagic(std::ifstream& ifs) {
 }
 
 bool Dlz::isSeg(std::ifstream& ifs) {
-	return peekMagic(ifs) == 0x73676573;
+	uint32_t magic = peekMagic(ifs);
+	return (magic == 0x73676573 || magic == 0x73656773);
 }
 
 int Dlz::getMaxDecompressedSize(std::ifstream& ifs, int& numSegs, int fileSize) {
@@ -53,7 +72,7 @@ int Dlz::getMaxDecompressedSize(std::ifstream& ifs, int& numSegs, int fileSize) 
 		ifs.read((char*)&segSize, 4);
 
 		ifs.seekg(-12, ifs.cur);
-		size += _byteswap_ulong(segSize);
+		size += isBigEndian ? _byteswap_ulong(segSize) : segSize;
 
 		numSegs++;
 

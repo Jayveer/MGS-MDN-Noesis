@@ -1,5 +1,6 @@
 #pragma once
-#include <inttypes.h>
+#include "../../common/util.h"
+#include "../../common/fileutil.h"
 
 struct DldHeader {
 	uint8_t type;
@@ -14,3 +15,6 @@ struct DldHeader {
 	uint32_t entryNumber;
 	uint32_t pad2;
 };
+
+extern void swapDld(uint8_t* dld,  int size);
+extern void swapDldHeader(DldHeader* header);

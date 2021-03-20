@@ -6,9 +6,12 @@ This is a plugin for [Noesis](https://richwhitehouse.com/index.php?content=inc_p
 
 ![picture](https://github.com/Jayveer/MGS-MDN-Noesis/blob/master/model.png?raw=true)
 
+### Latest Changes
+ - Added Metal Gear Arcade support
 
 ### To Do
  - Reasearch the different material flags
+ - Add MGS3D support
 
 ##  Usage.
 

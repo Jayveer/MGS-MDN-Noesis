@@ -1,5 +1,6 @@
 #pragma once
 #include <inttypes.h>
+#include "../../common/util.h"
 
 struct MtpData {
 	uint32_t mtpName;
@@ -25,3 +26,5 @@ struct EventHeader {
 	uint32_t signal;
 	uint32_t param;
 };
+
+extern void swapEndianMtex(uint8_t* mtex);

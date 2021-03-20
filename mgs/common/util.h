@@ -21,3 +21,29 @@ std::string intToHexString(int value) {
 	ss << std::hex << value;
 	return formatStrcode(ss.str());
 }
+
+inline
+void genericSwap(void* data, int numData, int length) {
+
+	for (int i = 0; i < numData; i++) {
+
+		switch (length) {
+		case 2: {
+			uint16_t* pData = (uint16_t*)data;
+			pData[i] = _byteswap_ushort(pData[i]);
+			break;
+		}
+		case 4: {
+			uint32_t* pData = (uint32_t*)data;
+			pData[i] = _byteswap_ulong(pData[i]);
+			break;
+		}
+		case 8: {
+			uint64_t* pData = (uint64_t*)data;
+			pData[i] = _byteswap_uint64(pData[i]);
+			break;
+		}
+		}
+	}
+
+}

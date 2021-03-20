@@ -9,7 +9,14 @@ bool g_mgs4SkipNormalMaps = false;
 bool g_mgs4HighlightMissingTex = false;
 
 inline
-void cacheDelayload(noeRAPI_t* rapi, std::vector<DldInfo>& dldInfo) {
+void deleteCache(std::vector<DldInfo>& dldInfo) {
+    for (int i = 0; i < dldInfo.size(); i++) {
+        delete[] dldInfo[i].dld;
+    }
+}
+
+inline
+void cacheDelayload(noeRAPI_t* rapi, std::vector<DldInfo>& dldInfo, bool isBigEndian) {
     std::filesystem::path p{ rapi->Noesis_GetInputName() };
     p = p.parent_path();
 
@@ -21,19 +28,20 @@ void cacheDelayload(noeRAPI_t* rapi, std::vector<DldInfo>& dldInfo) {
 
             int size;
             uint8_t* dld = dlz.decompress(size);
+            if (isBigEndian) swapDld(dld, size);
             dldInfo.push_back({ dld, size });
         }
     }
 }
 
 inline
-std::string findTxn(noeRAPI_t* rapi, uint32_t& strcode) {
+std::string findTxn(noeRAPI_t* rapi, uint32_t& strcode, bool isBigEndian) {
     std::filesystem::path p{ rapi->Noesis_GetInputName() };
     p = p.parent_path();
 
     for (const std::filesystem::directory_entry& file : std::filesystem::recursive_directory_iterator(p)) {
         if (file.path().extension() == ".txn") {
-            Txn txn = Txn(file.path().u8string());
+            Txn txn = Txn(file.path().u8string(), isBigEndian);
             if (txn.containsTexture(strcode))
                 return file.path().u8string();
         }
@@ -80,11 +88,11 @@ noesisTex_t* loadReplacementTex(noeRAPI_t* rapi) {
 }
 
 inline
-noesisTex_t* loadTexture(noeRAPI_t* rapi, uint32_t strcode, uint32_t txnStrcode, const std::vector<DldInfo>& dldInfo) {
-    std::string txnFile = findTxn(rapi, strcode);
+noesisTex_t* loadTexture(noeRAPI_t* rapi, uint32_t strcode, uint32_t txnStrcode, const std::vector<DldInfo>& dldInfo, bool isBigEndian) {
+    std::string txnFile = findTxn(rapi, strcode, isBigEndian);
     if (txnFile == "") return NULL;
 
-    Txn txn(txnFile);
+    Txn txn(txnFile, isBigEndian);
     txn.setRapi(rapi);
     int size;
     uint8_t* tga = txn.getTexture(strcode, size, dldInfo);
@@ -95,15 +103,14 @@ noesisTex_t* loadTexture(noeRAPI_t* rapi, uint32_t strcode, uint32_t txnStrcode,
 }
 
 inline
-void buildTextures(MdnTexture* texture, int32_t numTexture, noeRAPI_t* rapi, uint32_t txnStrcode, const std::vector<DldInfo>& dldInfo, CArrayList<noesisTex_t*>& texList) {
+void buildTextures(MdnTexture* texture, int32_t numTexture, noeRAPI_t* rapi, uint32_t txnStrcode, const std::vector<DldInfo>& dldInfo, CArrayList<noesisTex_t*>& texList, bool isBigEndian) {
 
     for (int i = 0; i < numTexture; i++) {
-        uint32_t strcode = _byteswap_ulong(texture[i].strcode);
-        std::string texStr = intToHexString(strcode) + ".tga";
+        std::string texStr = intToHexString(texture[i].strcode) + ".tga";
         char texName[11];
         strcpy_s(texName, texStr.c_str());
 
-        noesisTex_t* noeTexture = loadTexture(rapi, strcode, txnStrcode, dldInfo);
+        noesisTex_t* noeTexture = loadTexture(rapi, texture[i].strcode, txnStrcode, dldInfo, isBigEndian);
         if (!noeTexture) noeTexture = loadReplacementTex(rapi);
         noeTexture->filename = rapi->Noesis_PooledString(texName);
         texList.Append(noeTexture);
@@ -112,7 +119,7 @@ void buildTextures(MdnTexture* texture, int32_t numTexture, noeRAPI_t* rapi, uin
 
 inline
 void setMaterialIdx(MdnMaterial* material, noesisMaterial_t* noeMat, int idx, std::vector<uint32_t>& normalMaps) {
-    uint32_t texIdx = _byteswap_ulong(material->texture[idx]);
+    uint32_t texIdx = material->texture[idx];
 
     switch (idx) {
     case eTexture::DIFFUSETEX:
@@ -143,14 +150,14 @@ inline
 void buildMaterials(MdnMaterial* material, int32_t numMaterial, noeRAPI_t* rapi, CArrayList<noesisMaterial_t*>& matList, std::vector<uint32_t>& normalMaps) {
 
     for (int i = 0; i < numMaterial; i++) {
-        std::string matStr = intToHexString(_byteswap_ulong(material[i].strcode));
+        std::string matStr = intToHexString(material[i].strcode);
         char matName[7];
         strcpy_s(matName, matStr.c_str());
 
         noesisMaterial_t* noeMat = rapi->Noesis_GetMaterialList(1, false);
         noeMat->name = rapi->Noesis_PooledString(matName);
 
-        int32_t numTexture = _byteswap_ulong(material[i].numTexture);
+        int32_t numTexture = material[i].numTexture;
         for (int j = 0; j < numTexture; j++) {
             setMaterialIdx(&material[i], noeMat, j, normalMaps);
         }

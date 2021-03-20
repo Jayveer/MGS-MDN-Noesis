@@ -11,6 +11,8 @@ rpgeoDataType_e getType(uint8_t type) {
     switch ((type & 0xF0) >> 4) {
     case 0x01:
         return RPGEODATA_FLOAT;
+    case 0x05:
+        return RPGEODATA_SHORT;
     case 0x07:
         return RPGEODATA_HALFFLOAT;
     case 0x08:
@@ -19,6 +21,8 @@ rpgeoDataType_e getType(uint8_t type) {
         return RPGEODATA_BYTE;
     case 0x0A:
         return RPGEODATA_FLOAT;
+    case 0x0B:
+        return RPGEODATA_BYTE;
     default:
         printf("unknown");
     }
@@ -28,19 +32,15 @@ inline
 void readDec(std::vector<float>& dec, uint8_t* vertexBuffer, int32_t stride, int32_t numVertex) {
     for (int i = 0; i < numVertex; i++) {
         uint32_t bitstream = *(uint32_t*)vertexBuffer;
-        bitstream = _byteswap_ulong(bitstream);
         
         RichBitStream bs = RichBitStream(&bitstream, 4);
 
         float vx = bs.ReadBits(11) / 1023.0f;
         float vy = bs.ReadBits(11) / 1023.0f;
         float vz = bs.ReadBits(10) / 511.0f;
+        float vw = 1.0f;
 
-        vx = byteswap_float(vx);
-        vy = byteswap_float(vy);
-        vz = byteswap_float(vz);
-        float vw = byteswap_float(01);
-
+        
         dec.push_back(vx);
         dec.push_back(vy);
         dec.push_back(vz);
@@ -66,26 +66,21 @@ void readWeight(uint8_t* vertexBuffer, std::vector<float>& weights, int32_t stri
     for (int i = 0; i < numVertex; i++) {
         for (int j = 0; j < 4; j++) {
             uint8_t weight = vertexBuffer[j];
-            float w = weight / 255.0f;
-            w = byteswap_float(w);
-            weights.push_back(w);
+            weights.push_back(weight / 255.0f);
         }
         vertexBuffer += stride;
     }
 }
 
-
-
 inline
 void bindMesh(MdnMesh* mesh, MdnSkin* skin, MdnGroup* group, MdnVertexDefinition* vertexDefinition, uint8_t* vertexBuffer, noeRAPI_t* rapi, std::vector<float>& normals, std::vector<float>& weights, std::vector<float>& tangents, std::vector<uint8_t>& bones) {
-    int32_t numVertex     = _byteswap_ulong(mesh->numVertex);
-    int32_t stride        = _byteswap_ulong(vertexDefinition->stride);
-    int32_t offset        = _byteswap_ulong(vertexDefinition->offset);
-    int32_t numDefinition = _byteswap_ulong(vertexDefinition->defintionCount);
-    int64_t size          = numVertex * stride;
+    int32_t stride        = vertexDefinition->stride;
+    int32_t offset        = vertexDefinition->offset;
+    int32_t numDefinition = vertexDefinition->defintionCount;
+    int64_t size          = mesh->numVertex * stride;
         
-    skin  = &skin[_byteswap_ulong(mesh->skinIdx)];
-    group = &group[_byteswap_ulong(mesh->groupIdx)];
+    skin  = &skin[mesh->skinIdx];
+    group = &group[mesh->groupIdx];
 
     vertexBuffer += offset;
 
@@ -95,19 +90,19 @@ void bindMesh(MdnMesh* mesh, MdnSkin* skin, MdnGroup* group, MdnVertexDefinition
         uint8_t def = vertexDefinition->definition[i] & 0x0F;
         rpgeoDataType_e type = getType(vertexDefinition->definition[i]);
 
-
         switch (def) {
         case eDefinition::POSITION:
             rapi->rpgBindPositionBufferSafe(&vertexBuffer[pos], type, stride, size);
             break;
         case eDefinition::WEIGHT:
-            readWeight(&vertexBuffer[pos], weights, stride, numVertex);
+            readWeight(&vertexBuffer[pos], weights, stride, mesh->numVertex);
             rapi->rpgBindBoneWeightBufferSafe(&weights[0], RPGEODATA_FLOAT, 16, 4, weights.size() * 4);
             break;
         case eDefinition::NORMAL:
             if ((daf & 0xF0) >> 4 == 0x0A) {
-                readDec(normals, &vertexBuffer[pos], stride, numVertex);
-                rapi->rpgBindNormalBufferSafe(&normals[0], type, 16, normals.size() * 4);
+                normals.resize(mesh->numVertex * 3);
+                rapi->Noesis_DecodeNormals32(&normals[0], &vertexBuffer[pos], stride, mesh->numVertex, false, 11, 11, 10, 0);
+                rapi->rpgBindNormalBufferSafe(&normals[0], type, 12, normals.size() * 4);
             }  else {
                 rapi->rpgBindNormalBufferSafe(&vertexBuffer[pos], type, stride, size);
             }            
@@ -116,11 +111,15 @@ void bindMesh(MdnMesh* mesh, MdnSkin* skin, MdnGroup* group, MdnVertexDefinition
             if (!g_mgs4RenderVertexColour) break;
             rapi->rpgBindColorBufferSafe(&vertexBuffer[pos], type, stride, 4, size);
             break;
+        case eDefinition::TEXTURE3DS:
+            rapi->rpgBindUV1BufferSafe(&vertexBuffer[pos], type, stride, size);
+            break;
         case eDefinition::BONEIDX:
-            readSkin(skin, &vertexBuffer[pos], bones, stride, numVertex);
+            readSkin(skin, &vertexBuffer[pos], bones, stride, mesh->numVertex);
             rapi->rpgBindBoneIndexBufferSafe(&bones[0], RPGEODATA_UBYTE, 4, 4, bones.size());
             break;
         case eDefinition::TEXTURE00:
+        case eDefinition::TEXTURE01:
         case eDefinition::TEXTURE02:
         case eDefinition::TEXTURE03:
         case eDefinition::TEXTURE04:
@@ -129,13 +128,15 @@ void bindMesh(MdnMesh* mesh, MdnSkin* skin, MdnGroup* group, MdnVertexDefinition
             break;
         case eDefinition::TANGENT:
             if ((daf & 0xF0) >> 4 == 0x0A) {
-                readDec(tangents, &vertexBuffer[pos], stride, numVertex);
-                rapi->rpgBindTangentBufferSafe(&tangents[0], type, 16, tangents.size() * 4);
+                //tangents.resize(mesh->numVertex * 3);
+                //rapi->Noesis_DecodeNormals32(&tangents[0], &vertexBuffer[pos], stride, mesh->numVertex, false, 11, 11, 10, 0);
+                //rapi->rpgBindTangentBufferSafe(&tangents[0], type, 12, tangents.size() * 4);
             } else {
                 rapi->rpgBindTangentBufferSafe(&vertexBuffer[pos], type, stride, size);
-            }          
-           
+            }                     
             break;
+        default:
+            printf("unknown");
         }
     }
 }
