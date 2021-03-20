@@ -1,5 +1,6 @@
 #pragma once
 #include <inttypes.h>
+#include "../../common/util.h"
 #include "../../common/fileutil.h"
 #include "../../../noesis/plugin/pluginshare.h"
 
@@ -30,7 +31,11 @@ private:
 	const int MAXSEG = 0x20000;
 
 	noeRAPI_t* rapi;
+	bool isBigEndian = false;
+
+	void setEndian();
 	bool isSeg(std::ifstream& ifs);
+	void swapDlzHeader(SegHeader* header);
 	uint32_t peekMagic(std::ifstream& ifs);
 	void decompressSeg(uint8_t* seg, uint8_t* dst, int& size);
 	int getMaxDecompressedSize(std::ifstream& ifs, int& numSegs, int fileSize);

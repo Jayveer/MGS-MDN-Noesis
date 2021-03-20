@@ -1,5 +1,6 @@
 #pragma once
 #include <inttypes.h>
+#include "../../common/util.h"
 
 struct MtcmHeader {
 	uint32_t name;
@@ -23,3 +24,5 @@ struct MtcmHeader {
 	uint32_t quatOffset[];
 };
 
+extern void swapEndianMtcm(uint8_t* mtcm);
+extern int determineArchiveSize(uint8_t* mtcm, int archiveIdx, int numArchive);

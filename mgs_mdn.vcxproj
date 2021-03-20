@@ -153,6 +153,11 @@
     <ClCompile Include="include\half\eLut.cpp" />
     <ClCompile Include="include\half\half.cpp" />
     <ClCompile Include="include\half\toFloat.cpp" />
+    <ClCompile Include="mgs\model\mdn\mdn.cpp" />
+    <ClCompile Include="mgs\motion\mtar\mtar.cpp" />
+    <ClCompile Include="mgs\motion\mtar\mtcm.cpp" />
+    <ClCompile Include="mgs\motion\mtar\mtex.cpp" />
+    <ClCompile Include="mgs\texture\dld\dld.cpp" />
     <ClCompile Include="mgs\texture\dlz\dlz.cpp" />
     <ClCompile Include="mgs\texture\txn\txn.cpp" />
     <ClCompile Include="mgs_mdn.cpp" />

@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include "../dld/dld.h"
+#include "../../common/util.h"
 #include "../../common/fileutil.h"
 #include "../../../noesis/plugin/pluginshare.h"
 
@@ -48,7 +49,7 @@ struct TxnHeader {
 
 class Txn {
 public:
-	Txn(std::string filename);
+	Txn(std::string filename, bool isBigEndian);
 	~Txn();
 
 	noeRAPI_t* rapi;
@@ -62,5 +63,6 @@ private:
 	TxnHeader* header;
 	std::string filename;
 
-	uint8_t* Txn::tgaFromDXT(uint8_t* dxtData, int width, int height, noesisTexType_e dxtFmt, int& size);
+	void swapEndian();
+	uint8_t* tgaFromDXT(uint8_t* dxtData, int width, int height, noesisTexType_e dxtFmt, int& size);
 };

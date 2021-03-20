@@ -17,15 +17,14 @@ modelBone_t* bindBones(MdnBone* bones, int numBones, noeRAPI_t* rapi) {
     modelBone_t* noeBones = rapi->Noesis_AllocBones(numBones);
 
     for (int i = 0; i < numBones; i++) {
-        uint32_t strcode = _byteswap_ulong(bones[i].strcode);
-        std::string boneName = intToHexString(strcode);
+        std::string boneName = intToHexString(bones[i].strcode);
         strcpy_s(noeBones[i].name, boneName.c_str());
 
-        RichVec4 bonePos = { byteswap_float(bones[i].worldPos.x), byteswap_float(bones[i].worldPos.y), byteswap_float(bones[i].worldPos.z), byteswap_float(bones[i].worldPos.w) };
+        RichVec4 bonePos = { bones[i].worldPos.x, bones[i].worldPos.y, bones[i].worldPos.z, bones[i].worldPos.w };
         RichVec3 bonePosV3 = bonePos.ToVec3();
         memcpy_s(&noeBones[i].mat.o, 12, &bonePosV3, 12);
 
-        int32_t parent = _byteswap_ulong(bones[i].parent);
+        int32_t parent = bones[i].parent;
         if (parent > -1)
             noeBones[i].eData.parent = &noeBones[parent];
     }

@@ -39,6 +39,21 @@
     <ClCompile Include="mgs\texture\txn\txn.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="mgs\model\mdn\mdn.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mgs\texture\dld\dld.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mgs\motion\mtar\mtar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mgs\motion\mtar\mtcm.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mgs\motion\mtar\mtex.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="noesis\plugin\NoeSRShared.h">

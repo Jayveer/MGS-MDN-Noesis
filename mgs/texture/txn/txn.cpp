@@ -1,6 +1,6 @@
 #include "txn.h"
 
-Txn::Txn(std::string filename) {
+Txn::Txn(std::string filename, bool isBigEndian) {
 	std::ifstream fs;
 	int size = std::filesystem::file_size(filename);
 
@@ -11,6 +11,7 @@ Txn::Txn(std::string filename) {
 	fs.close();
 
 	this->header = (TxnHeader*)txnData;
+	if (isBigEndian) swapEndian();
 }
 
 Txn::~Txn() {
@@ -26,12 +27,12 @@ bool Txn::containsTexture(uint32_t strcode) {
 }
 
 int Txn::getIdx(uint32_t strcode) {
-	int32_t numTexture = _byteswap_ulong(header->numTexture);
-	int32_t textureOffset = _byteswap_ulong(header->textureOffset);
+	int32_t numTexture = header->numTexture;
+	int32_t textureOffset = header->textureOffset;
 	TxnTexture* textureInfo = (TxnTexture*)&txnData[textureOffset];
 
 	for (int i = 0; i < numTexture; i++) {
-		if (_byteswap_ulong(textureInfo[i].texStrcode) == strcode)
+		if (textureInfo[i].texStrcode == strcode)
 			return i;
 	}
 
@@ -41,13 +42,16 @@ int Txn::getIdx(uint32_t strcode) {
 uint8_t* getFromCache(uint32_t txnStrcode, int idx, int& size, uint8_t priority, const std::vector<DldInfo>& dldArray) {
 	for (int i = 0; i < dldArray.size(); i++) {
 		int pos = 0;
+
 		while (pos < dldArray[i].size) {
 			DldHeader* header = (DldHeader*)&dldArray[i].dld[pos];
-			if ((header->priority == priority) && header->strcode == txnStrcode && (_byteswap_ulong(header->entryNumber) == idx)) {
-				size = _byteswap_ulong(header->dataSize);
+
+			if (header->priority == priority && header->strcode == txnStrcode && header->entryNumber == idx) {
+				size = header->dataSize;
 				return &dldArray[i].dld[pos + 0x20];
 			}
-			pos += (_byteswap_ulong(header->dataSize) + 0x20);
+
+			pos += header->dataSize + 0x20;
 			pos += getAlignment(pos, 0x10);
 		}
 	}
@@ -61,7 +65,6 @@ uint8_t* Txn::getTexture(uint32_t strcode, int& size, const std::vector<DldInfo>
 }
 
 noesisTexType_e getFourCC(uint16_t flag) {
-	flag = _byteswap_ushort(flag);
 
 	switch (flag) {
 	case 0x03:
@@ -78,7 +81,7 @@ noesisTexType_e getFourCC(uint16_t flag) {
 }
 
 bool isExternal(uint16_t flag) {
-	return (_byteswap_ushort(flag) & 0xF0) == 0xF0;
+	return (flag >> 4) == 0x0F;
 }
 
 uint8_t* Txn::tgaFromDXT(uint8_t* dxtData, int width, int height, noesisTexType_e dxtFmt, int& size) {
@@ -89,27 +92,41 @@ uint8_t* Txn::tgaFromDXT(uint8_t* dxtData, int width, int height, noesisTexType_
 	return tga;
 }
 
-uint8_t* Txn::getTextureIndexed(int idx, int& size, const std::vector<DldInfo>& dldArray) {
-	int32_t textureOffset = _byteswap_ulong(header->textureOffset);
-	TxnTexture* textureInfo = (TxnTexture*)&txnData[textureOffset];
+void Txn::swapEndian() {
+	genericSwap(this->header, 8, 4);
+	TxnImage*   image   = (TxnImage*  )&txnData[header->imageOffset];
+	TxnTexture* texture = (TxnTexture*)&txnData[header->textureOffset];
 
-	uint32_t  imageOffset = _byteswap_ulong(textureInfo[idx].imageOffset);
-	TxnImage* image = (TxnImage*)&txnData[imageOffset];
+	for (int i = 0; i < header->numImage; i++) {
+		genericSwap(&image[i], 4, 2);
+		genericSwap(&image[i].offset, 2, 4);
+	}
+
+	for (int i = 0; i < header->numTexture; i++) {
+		genericSwap(&texture[i], 3, 4);
+		genericSwap(&texture[i].width, 4, 2);
+		genericSwap(&texture[i].imageOffset, 7, 4);
+	}
+}
+
+uint8_t* Txn::getTextureIndexed(int idx, int& size, const std::vector<DldInfo>& dldArray) {
+	TxnTexture* textureInfo = (TxnTexture*)&txnData[header->textureOffset];
+	TxnImage* image = (TxnImage*)&txnData[textureInfo[idx].imageOffset];
 
 	noesisTexType_e dxt = getFourCC(image->fourCC);
-	int16_t width  = _byteswap_ushort(textureInfo[idx].width);
-	int16_t height = _byteswap_ushort(textureInfo[idx].height);
+	int16_t width  = textureInfo[idx].width;
+	int16_t height = textureInfo[idx].height;
 
 	if (isExternal(image->flag)) {
-		uint8_t*   data = getFromCache(textureInfo[idx].txnStrcode, idx, size, 0, dldArray);
-		if (!data) data = getFromCache(textureInfo[idx].txnStrcode, idx, size, 3, dldArray);
+		uint8_t* data = NULL;
+		for (int prio = 0; prio < 4 && !data; prio++) {
+			data = getFromCache(textureInfo[idx].txnStrcode, idx, size, prio, dldArray);
+		}
+
 		if (!data) return NULL;
 
 		return tgaFromDXT(data, width, height, dxt, size);
 	}
 
-	uint32_t offset       = _byteswap_ulong(image->offset);
-	uint32_t mipMapOffset = _byteswap_ulong(image->mipMapOffset);
-
-	return tgaFromDXT(&txnData[offset], width, height, dxt, size);
+	return tgaFromDXT(&txnData[image->offset], width, height, dxt, size);
 }

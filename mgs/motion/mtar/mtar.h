@@ -1,5 +1,8 @@
 #pragma once
 #include <vector>
+#include "mtcm.h"
+#include "mtex.h"
+#include "../../common/util.h"
 
 typedef struct MtarData {
 	uint32_t mtcmOffset;
@@ -20,3 +23,5 @@ typedef struct MtarHeader {
 	uint32_t boneNameTableOffset;
 	uint32_t dataTableOffset;
 } MtarHeader;
+
+extern void swapEndianMtar(uint8_t* mtar);

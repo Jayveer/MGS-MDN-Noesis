@@ -48,8 +48,7 @@ float short2HalfExp(const uint16_t& n) {
 inline
 bool checkMagic(BYTE* motionFile) {
     MtarHeader* header = (MtarHeader*)motionFile;
-    uint32_t magic = _byteswap_ulong(header->magic);
-    return magic == 0x7261744D;
+    return header->magic == 0x7261744D || header->magic == 0x4D746172;
 }
 
 inline
@@ -59,18 +58,6 @@ BYTE* openMotion(noeRAPI_t* rapi) {
     BYTE* mtarFile = rapi->Noesis_LoadPairedFile("load mtar", ".mtar", len, out);
     if (!mtarFile) return NULL;
     return checkMagic(mtarFile) ? mtarFile : NULL;
-}
-
-inline
-std::vector<uint16_t> swapArchiveEndian(uint16_t* bitstream, const int& size) {
-    std::vector<uint16_t> swapped;
-
-    for (int i = 0; i < size; i++) {
-        swapped.push_back(_byteswap_ushort(*bitstream));
-        bitstream++;
-    }
-
-    return swapped;
 }
 
 inline
@@ -92,8 +79,7 @@ inline
 std::vector<RotAnimation> readRotBitstream(uint16_t* rotBitStream, const int& size, const int& quatLength, const uint32_t& numFrames) {
     int keyFrame = 0;
     std::vector<RotAnimation> ra;
-    std::vector <uint16_t> swapped = swapArchiveEndian(rotBitStream, size);
-    RichBitStream bs = RichBitStream(&swapped[0], size * 2);
+    RichBitStream bs = RichBitStream(rotBitStream, size * 2);
 
     while (keyFrame < numFrames) {
         keyFrame += bs.ReadBits(8);
@@ -124,8 +110,7 @@ inline
 std::vector<MoveAnimation> readMoveBitstream(uint16_t* moveBitStream, const int& size, const uint32_t& numFrames) {
     int keyFrame = 0;
     std::vector<MoveAnimation> ma;
-    std::vector <uint16_t> swapped = swapArchiveEndian(moveBitStream, size);
-    RichBitStream bs = RichBitStream(&swapped[0], size * 2);
+    RichBitStream bs = RichBitStream(moveBitStream, size * 2);
 
     while (keyFrame < numFrames) {
         float x = short2HalfExp(bs.ReadBits(16));
@@ -136,16 +121,6 @@ std::vector<MoveAnimation> readMoveBitstream(uint16_t* moveBitStream, const int&
     }
     
     return ma;
-}
-
-inline
-int determineArchiveSize(uint8_t* mtcm, int i) {
-    MtcmHeader* mtcmHeader = (MtcmHeader*)mtcm;
-    int rotOffset = _byteswap_ulong(mtcmHeader->quatOffset[i]);
-
-    int nextOffset = (i == _byteswap_ulong(mtcmHeader->numJoints) - 1) ? _byteswap_ulong(mtcmHeader->rootOffset) : _byteswap_ulong(mtcmHeader->quatOffset[i + 1]);
-    int size = nextOffset - rotOffset;
-    return size <= 0 ? _byteswap_ulong(mtcmHeader->rootOffset) - rotOffset : size;
 }
 
 inline
@@ -287,24 +262,17 @@ inline
 noesisAnim_t* bindMtcm(uint8_t* mtcm, uint8_t* mtex, uint32_t* boneTable, noeRAPI_t* rapi, modelBone_t* noeBones, int numBones) {
     MtcmHeader* mtcmHeader = (MtcmHeader*)mtcm;
     
-    uint8_t* mtcmArchive = &mtcm[_byteswap_ulong(mtcmHeader->archiveOffset)];
-    uint8_t* jointIndicies = &mtcm[_byteswap_ushort(mtcmHeader->indiciesOffset)];
-    uint8_t* jointIndicies2 = &mtcm[_byteswap_ushort(mtcmHeader->indiciesOffset) + _byteswap_ulong(mtcmHeader->numJoints)];
+    uint8_t* mtcmArchive    = &mtcm[mtcmHeader->archiveOffset];
+    uint8_t* jointIndicies  = &mtcm[mtcmHeader->indiciesOffset];
+    uint8_t* jointIndicies2 = &mtcm[mtcmHeader->indiciesOffset + mtcmHeader->numJoints];
 
     std::vector<float> aniData;
     std::vector<noeKeyFramedBone_t> kfBones;
     std::vector <std::vector<noeKeyFrameData_t>> kfData;
 
-    std::vector<uint32_t> swapped;
+    RichBitStream bs = RichBitStream(&mtcmHeader->bitCheck0, 128);
 
-    swapped.push_back(_byteswap_ulong(mtcmHeader->bitCheck0));
-    swapped.push_back(_byteswap_ulong(mtcmHeader->bitCheck1));
-    swapped.push_back(_byteswap_ulong(mtcmHeader->bitCheck2));
-    swapped.push_back(_byteswap_ulong(mtcmHeader->bitCheck3));
-
-    RichBitStream bs = RichBitStream(&swapped[0], 128);
-
-    for (int j = 0; j < _byteswap_ulong(mtcmHeader->numJoints); j++) {
+    for (int j = 0; j < mtcmHeader->numJoints; j++) {
         int check = bs.ReadBits(1);
         std::vector<RotAnimation>  rot;
         std::vector<MoveAnimation> trans;
@@ -312,18 +280,18 @@ noesisAnim_t* bindMtcm(uint8_t* mtcm, uint8_t* mtex, uint32_t* boneTable, noeRAP
 
         if (j == 0) {
             uint16_t* moveBitstream = (uint16_t*)mtcmArchive;
-            trans = readMoveBitstream(moveBitstream, _byteswap_ulong(mtcmHeader->quatOffset[0]), _byteswap_ulong(mtcmHeader->numFrames));
+            trans = readMoveBitstream(moveBitstream, mtcmHeader->quatOffset[0], mtcmHeader->numFrames);
         }
 
-        int boneID = _byteswap_ulong(boneTable[jointIndicies[j]]);
-        int size = determineArchiveSize(mtcm, j);
-        int rotOffset = _byteswap_ulong(mtcmHeader->quatOffset[j]);
+        int boneID = boneTable[jointIndicies[j]];
+        int size = determineArchiveSize(mtcm, j, mtcmHeader->numJoints);
+        int rotOffset = mtcmHeader->quatOffset[j];
         uint16_t* rotBitstream = (uint16_t*)&mtcmArchive[rotOffset * 2];
 
         int quatLength = check ? mtcmHeader->quatHighBit : mtcmHeader->quatLowBit;
-        rot = readRotBitstream(rotBitstream, size, quatLength, _byteswap_ulong(mtcmHeader->numFrames));
+        rot = readRotBitstream(rotBitstream, size, quatLength, mtcmHeader->numFrames);
 
-        noeKeyFramedBone_t kfBone = createKFBone(boneID, noeBones, numBones, _byteswap_ulong(mtcmHeader->numFrames), trans, rot, scale, aniData, kfData);
+        noeKeyFramedBone_t kfBone = createKFBone(boneID, noeBones, numBones, mtcmHeader->numFrames, trans, rot, scale, aniData, kfData);
         kfBones.push_back(kfBone);
     }
 
@@ -331,7 +299,7 @@ noesisAnim_t* bindMtcm(uint8_t* mtcm, uint8_t* mtex, uint32_t* boneTable, noeRAP
 
     if (aniData.empty()) return NULL;
 
-    std::string animName = intToHexString(_byteswap_ulong(mtcmHeader->name));
+    std::string animName = intToHexString(mtcmHeader->name);
     noeKeyFramedAnim_t kfAnim = createKFAnim((char*)animName.c_str(), noeBones, numBones, kfBones, aniData);
 
     noesisAnim_t* anim = rapi->Noesis_AnimFromBonesAndKeyFramedAnim(noeBones, numBones, &kfAnim, true);
@@ -341,17 +309,19 @@ noesisAnim_t* bindMtcm(uint8_t* mtcm, uint8_t* mtex, uint32_t* boneTable, noeRAP
 inline
 void loadMotion(noeRAPI_t* rapi, BYTE* motionFile, modelBone_t* noeBones, int numBones) {
     MtarHeader* mtarHeader = (MtarHeader*)motionFile;
-    uint8_t* mtcm = (uint8_t*)&motionFile[_byteswap_ulong(mtarHeader->mtcmOffset)];
-    uint8_t* mtex = (uint8_t*)&motionFile[_byteswap_ulong(mtarHeader->mtexOffset)];
-    MtarData* mtcmTable = (MtarData*)&motionFile[_byteswap_ulong(mtarHeader->dataTableOffset)];
-    uint32_t* boneTable = (uint32_t*)&motionFile[_byteswap_ulong(mtarHeader->boneNameTableOffset)];
+
+    if (mtarHeader->magic == 0x4D746172) swapEndianMtar(motionFile);
+
+    uint8_t* mtcm = (uint8_t*)&motionFile[mtarHeader->mtcmOffset];
+    uint8_t* mtex = (uint8_t*)&motionFile[mtarHeader->mtexOffset];
+    MtarData* mtcmTable = (MtarData*)&motionFile[mtarHeader->dataTableOffset];
+    uint32_t* boneTable = (uint32_t*)&motionFile[mtarHeader->boneNameTableOffset];
 
     CArrayList<noesisAnim_t*> animList;
-    int16_t numMotion = _byteswap_ushort(mtarHeader->numMotion);
 
-    for (int i = 0; i < numMotion; i++) {
-        uint8_t* thisMtcm = &mtcm[_byteswap_ulong(mtcmTable[i].mtcmOffset)];
-        uint8_t* thisMtex = mtcmTable[i].mtexSize ? &mtex[_byteswap_ulong(mtcmTable[i].mtexOffset)] : NULL;
+    for (int i = 0; i < mtarHeader->numMotion; i++) {
+        uint8_t* thisMtcm = &mtcm[mtcmTable[i].mtcmOffset];
+        uint8_t* thisMtex = mtcmTable[i].mtexSize ? &mtex[mtcmTable[i].mtexOffset] : NULL;
 
         noesisAnim_t* anim = bindMtcm(thisMtcm, thisMtex, boneTable, rapi, noeBones, numBones);
         if (anim) animList.Append(anim);
