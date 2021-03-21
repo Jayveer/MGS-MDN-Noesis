@@ -11,7 +11,7 @@ bool checkMDN(BYTE* fileBuffer, int bufferLen, noeRAPI_t* rapi) {
 noesisModel_t* loadMDN(BYTE* fileBuffer, int bufferLen, int& numMdl, noeRAPI_t* rapi) {
     void* ctx = rapi->rpgCreateContext();
     rapi->rpgSetTriWinding(1);
-    //rapi->rpgSetOption(NMSHAREDFL_WANTTANGENTS4, true);
+    rapi->rpgSetOption(NMSHAREDFL_WANTTANGENTS4, true);
 
     MdnHeader*   header       = (MdnHeader*   )fileBuffer;
 
