@@ -128,9 +128,9 @@ void bindMesh(MdnMesh* mesh, MdnSkin* skin, MdnGroup* group, MdnVertexDefinition
             break;
         case eDefinition::TANGENT:
             if ((daf & 0xF0) >> 4 == 0x0A) {
-                //tangents.resize(mesh->numVertex * 3);
-                //rapi->Noesis_DecodeNormals32(&tangents[0], &vertexBuffer[pos], stride, mesh->numVertex, false, 11, 11, 10, 0);
-                //rapi->rpgBindTangentBufferSafe(&tangents[0], type, 12, tangents.size() * 4);
+                tangents.resize(mesh->numVertex * 3);
+                rapi->Noesis_DecodeNormals32(&tangents[0], &vertexBuffer[pos], stride, mesh->numVertex, false, 11, 11, 10, 0);
+                rapi->rpgBindTangentBufferSafe(&tangents[0], type, 12, tangents.size() * 4);
             } else {
                 rapi->rpgBindTangentBufferSafe(&vertexBuffer[pos], type, stride, size);
             }                     
