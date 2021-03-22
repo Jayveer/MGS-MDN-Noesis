@@ -82,6 +82,7 @@ int Dlz::getMaxDecompressedSize(std::ifstream& ifs, int& numSegs, int fileSize) 
 		ifs.seekg(MAXSEG, ifs.cur);
 	}
 
+	ifs.clear();
 	ifs.seekg(0, ifs.beg);
 	return size;
 }

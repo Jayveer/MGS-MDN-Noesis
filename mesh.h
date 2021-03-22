@@ -34,17 +34,22 @@ void readDec(std::vector<float>& dec, uint8_t* vertexBuffer, int32_t stride, int
         uint32_t bitstream = *(uint32_t*)vertexBuffer;
         
         RichBitStream bs = RichBitStream(&bitstream, 4);
+        
+        int32_t ax = bs.ReadBits(11);
+        int32_t ay = bs.ReadBits(11);
+        int32_t az = bs.ReadBits(10);
 
-        float vx = bs.ReadBits(11) / 1023.0f;
-        float vy = bs.ReadBits(11) / 1023.0f;
-        float vz = bs.ReadBits(10) / 511.0f;
-        float vw = 1.0f;
+        if (ax & 0x400) ax |= -0x100;
+        if (ay & 0x400) ay |= -0x100;
+        if (az & 0x200) az |= -0x100;
 
+        float vx = ax / 1023.0f;
+        float vy = ay / 1023.0f;
+        float vz = az / 511.0f;
         
         dec.push_back(vx);
         dec.push_back(vy);
         dec.push_back(vz);
-        dec.push_back(vw);
 
         vertexBuffer += stride;
     }
@@ -100,8 +105,7 @@ void bindMesh(MdnMesh* mesh, MdnSkin* skin, MdnGroup* group, MdnVertexDefinition
             break;
         case eDefinition::NORMAL:
             if ((daf & 0xF0) >> 4 == 0x0A) {
-                normals.resize(mesh->numVertex * 3);
-                rapi->Noesis_DecodeNormals32(&normals[0], &vertexBuffer[pos], stride, mesh->numVertex, false, 11, 11, 10, 0);
+                readDec(normals, &vertexBuffer[pos], stride, mesh->numVertex);
                 rapi->rpgBindNormalBufferSafe(&normals[0], type, 12, normals.size() * 4);
             }  else {
                 rapi->rpgBindNormalBufferSafe(&vertexBuffer[pos], type, stride, size);
@@ -128,9 +132,8 @@ void bindMesh(MdnMesh* mesh, MdnSkin* skin, MdnGroup* group, MdnVertexDefinition
             break;
         case eDefinition::TANGENT:
             if ((daf & 0xF0) >> 4 == 0x0A) {
-                tangents.resize(mesh->numVertex * 3);
-                rapi->Noesis_DecodeNormals32(&tangents[0], &vertexBuffer[pos], stride, mesh->numVertex, false, 11, 11, 10, 0);
-                rapi->rpgBindTangentBufferSafe(&tangents[0], type, 12, tangents.size() * 4);
+                readDec(tangents, &vertexBuffer[pos], stride, mesh->numVertex);
+                //rapi->rpgBindTangentBufferSafe(&tangents[0], type, 12, tangents.size() * 4);
             } else {
                 rapi->rpgBindTangentBufferSafe(&vertexBuffer[pos], type, stride, size);
             }                     
