@@ -8,6 +8,15 @@ bool checkMDN(BYTE* fileBuffer, int bufferLen, noeRAPI_t* rapi) {
     return magic == 0x204E444D;
 }
 
+SNoeSceneLight setLight() {
+    SNoeSceneLight light;
+    light.mPos[0] = 10000;
+    light.mPos[1] = 10000;
+    light.mPos[2] = 10000;
+    light.mPos[3] = 10000;
+    return light;
+}
+
 noesisModel_t* loadMDN(BYTE* fileBuffer, int bufferLen, int& numMdl, noeRAPI_t* rapi) {
     void* ctx = rapi->rpgCreateContext();
     rapi->rpgSetTriWinding(1);
@@ -43,9 +52,7 @@ noesisModel_t* loadMDN(BYTE* fileBuffer, int bufferLen, int& numMdl, noeRAPI_t* 
     decompNormals(normalMaps, texList);
 
     for (int i = 0; i < header->numMesh; i++) {
-        std::vector<float> normals;
-        std::vector<float> tangents;
-        std::vector<float> weights;
+        std::vector<float> normals, tangents, weights;
         std::vector<uint8_t> bones;
 
         bindMesh(&mesh[i], skin, group, &vertexDefinition[i], vertexBuffer, rapi, normals, weights, tangents, bones);

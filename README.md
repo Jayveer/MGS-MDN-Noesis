@@ -3,14 +3,15 @@
 
 This is a plugin for [Noesis](https://richwhitehouse.com/index.php?content=inc_projects.php&showproject=91) which allows the user to view textured 3D Models and animations from the game Metal Gear Solid 4: Guns of the Patriots. As I do not know all of the material flags there textures may be assigned to the incorrect material slot.
 
+I would also like to thank JinMar for his help on researching the shader flags.
 
 ![picture](https://github.com/Jayveer/MGS-MDN-Noesis/blob/master/model.png?raw=true)
 
 ### Latest Changes
+ - Added different shader flags
  - Added Metal Gear Arcade support
 
 ### To Do
- - Reasearch the different material flags
  - Add MGS3D support
 
 ##  Usage.
@@ -25,8 +26,8 @@ This option will allow you to choose an Mtar file after the model has loaded. Th
 ##### Highlight Missing Textures
 This option will addd a fuschia colour to textures that are missing so that they are easier to identify.
 
-##### Skip Normal Maps
-As I do not know all the material flags some textures may be assigned to the incorrect material slot. As a result you may find colours to be incorrect in some places, this option can be selected in an attempt to correct it in exchange for the loss of normal maps.
+##### Render Layer Map As Diffuse
+The game blends certain diffuse maps together, as I cannot do this in Noesis I have given the option to render the layer map as the main diffuse for the times when the layer map is supposed to be the main diffuse.
 
 ##### Render Vertex Colour
 Sometimes vertex colours cause some models to be transparent in places, because of this I decided to omit rendering them, however you can use this option to turn them on.

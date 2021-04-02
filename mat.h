@@ -5,7 +5,8 @@
 #include "mgs/texture/txn/txn.h"
 #include "noesis/plugin/pluginshare.h"
 
-bool g_mgs4SkipNormalMaps = false;
+#include "shader.h"
+
 bool g_mgs4HighlightMissingTex = false;
 
 inline
@@ -118,35 +119,6 @@ void buildTextures(MdnTexture* texture, int32_t numTexture, noeRAPI_t* rapi, uin
 }
 
 inline
-void setMaterialIdx(MdnMaterial* material, noesisMaterial_t* noeMat, int idx, std::vector<uint32_t>& normalMaps) {
-    uint32_t texIdx = material->texture[idx];
-
-    switch (idx) {
-    case eTexture::DIFFUSETEX:
-        noeMat->texIdx = texIdx;
-        break;
-    case eTexture::NORMALTEX:
-        if (g_mgs4SkipNormalMaps) break;
-        normalMaps.push_back(texIdx);
-        noeMat->normalTexIdx = texIdx;
-        break;
-    case eTexture::SPECULARTEX:
-        noeMat->specularTexIdx = texIdx;
-        break;
-    case eTexture::SPECULAR_GRADIENTTEX:
-        break;
-    case eTexture::INCIDENCETEX:
-        break;
-    case eTexture::REFLECTTEX:
-        break;
-    case eTexture::WRINKLETEX:
-        break;
-    case eTexture::UNKNOWNTEX:
-        break;
-    }
-}
-
-inline
 void buildMaterials(MdnMaterial* material, int32_t numMaterial, noeRAPI_t* rapi, CArrayList<noesisMaterial_t*>& matList, std::vector<uint32_t>& normalMaps) {
 
     for (int i = 0; i < numMaterial; i++) {
@@ -158,9 +130,7 @@ void buildMaterials(MdnMaterial* material, int32_t numMaterial, noeRAPI_t* rapi,
         noeMat->name = rapi->Noesis_PooledString(matName);
 
         int32_t numTexture = material[i].numTexture;
-        for (int j = 0; j < numTexture; j++) {
-            setMaterialIdx(&material[i], noeMat, j, normalMaps);
-        }
+        shaderFactory(&material[i], noeMat, numTexture, normalMaps);
 
         matList.Append(noeMat);
     }

@@ -24,8 +24,8 @@ int mgs4_highlight_missing(int toolIdx, void* user_data) {
 }
 
 inline
-int mgs4_skip_normal_map(int toolIdx, void* user_data) {
-    return genericToolSet(g_mgs4SkipNormalMaps, toolIdx);
+int mgs4_layer_as_diffuse(int toolIdx, void* user_data) {
+    return genericToolSet(g_mgs4LayerAsDiffuse, toolIdx);
 }
 
 inline
@@ -44,6 +44,6 @@ inline
 void applyTools() {
     makeTool("Prompt for Motion Archive", mgs4_anim_prompt);
     makeTool("Highlight Missing Textures", mgs4_highlight_missing);
-    makeTool("Skip Normal Maps", mgs4_skip_normal_map);
+    makeTool("Render Layer Map as Diffuse", mgs4_layer_as_diffuse);
     makeTool("Render Vertex Colour", mgs4_render_vertex_colour);
 }

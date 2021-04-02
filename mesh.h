@@ -35,13 +35,9 @@ void readDec(std::vector<float>& dec, uint8_t* vertexBuffer, int32_t stride, int
         
         RichBitStream bs = RichBitStream(&bitstream, 4);
         
-        int32_t ax = bs.ReadBits(11);
-        int32_t ay = bs.ReadBits(11);
-        int32_t az = bs.ReadBits(10);
-
-        if (ax & 0x400) ax |= -0x100;
-        if (ay & 0x400) ay |= -0x100;
-        if (az & 0x200) az |= -0x100;
+        int32_t ax = bs.ReadBits(11); ax = negateBits(ax, 11);
+        int32_t ay = bs.ReadBits(11); ay = negateBits(ay, 11);
+        int32_t az = bs.ReadBits(10); az = negateBits(az, 10);
 
         float vx = ax / 1023.0f;
         float vy = ay / 1023.0f;
