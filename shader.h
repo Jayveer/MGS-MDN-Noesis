@@ -12,58 +12,61 @@ struct shaderParams {
 
 shaderParams setParams(uint32_t flag) {
     shaderParams params;
-    params.useUV1 = (flag >> 16) & 1; //may have to switch these around
+    params.useUV1 = (flag >> 16) & 1;
     params.noSpec = (flag >> 17) & 1;
-    params.hasEnv = (flag >> 20) & 1; //may have to switch these around
+    params.hasEnv = (flag >> 20) & 1;
     params.noNorm = false;
     params.noDiff = false;
     return params;
 }
 
 inline
-void setDiffuse(noesisMaterial_t* noeMat, int texIdx) {
+void setDiffuse(noesisMaterial_t* noeMat, int texIdx, int channel) {
     noeMat->texIdx = texIdx;
 }
 
 inline
-void setOpacity(noesisMaterial_t* noeMat, int texIdx) {
+void setOpacity(noesisMaterial_t* noeMat, int texIdx, int channel) {
     noeMat->transTexIdx = texIdx;
 }
 
 inline
-void setNormal(noesisMaterial_t* noeMat, int texIdx, std::vector<uint32_t>& normalMaps) {
+void setNormal(noesisMaterial_t* noeMat, int texIdx, int channel, std::vector<uint32_t>& normalMaps) {
     normalMaps.push_back(texIdx);
     noeMat->normalTexIdx = texIdx;
+    if (channel == 1) noeMat->flags |= NMATFLAG_NORMAL_UV1;
 }
 
 inline
-void setSubNormal(noesisMaterial_t* noeMat, int texIdx, std::vector<uint32_t>& normalMaps) {
+void setSubNormal(noesisMaterial_t* noeMat, int texIdx, int channel, std::vector<uint32_t>& normalMaps) {
     normalMaps.push_back(texIdx);
     noeMat->bumpTexIdx = texIdx;
 }
 
 inline
-void setSpec(noesisMaterial_t* noeMat, int texIdx) {
+void setSpec(noesisMaterial_t* noeMat, int texIdx, int channel) {
     noeMat->specularTexIdx = texIdx;
+    if (channel == 1) noeMat->flags |= NMATFLAG_SPEC_UV1;
 }
 
 inline
-void setEnv(noesisMaterial_t* noeMat, int texIdx) {
+void setEnv(noesisMaterial_t* noeMat, int texIdx, int channel) {
     noeMat->envTexIdx = texIdx;
 }
 
 inline
-void setLayer(noesisMaterial_t* noeMat, int texIdx) {
-    if (g_mgs4LayerAsDiffuse) noeMat->texIdx = texIdx;
+void setLayer(noesisMaterial_t* noeMat, int texIdx, int channel) {
+    if (g_mgs4LayerAsDiffuse)
+        noeMat->texIdx = texIdx;
 }
 
 inline
 int basicShader(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps, shaderParams& params) {
     int i = 0;
-    if (params.useUV1) noeMat->flags |= NMATFLAG_UV1_ANY;
-    if (i < maxTex && !params.noDiff) setDiffuse(noeMat, material->texture[i++]);
-    if (i < maxTex && !params.noNorm) setNormal(noeMat, material->texture[i++], normalMaps);
-    if (i < maxTex && !params.noSpec)  setSpec(noeMat, material->texture[i++]);
+
+    if (i < maxTex && !params.noDiff) setDiffuse(noeMat, material->texture[i++], i);
+    if (i < maxTex && !params.noNorm)  setNormal(noeMat, material->texture[i++], i, normalMaps);
+    if (i < maxTex && !params.noSpec)    setSpec(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -72,14 +75,14 @@ int useShader000(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     if (params.noSpec && params.hasEnv) {        
         int i = 0;
-        if (i < maxTex) setDiffuse(noeMat, material->texture[i++]);
+        if (i < maxTex) setDiffuse(noeMat, material->texture[i++], i);
         if (i < maxTex) i++; // sometimes it isnt a normal
         return i;
     }  
 
     params.useUV1 = false;
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -87,7 +90,7 @@ inline
 int useShader001(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -95,19 +98,18 @@ inline
 int useShader002(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
 inline
 int useShader003(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
-    //if (params.useUV1) noeMat->flags |= NMATFLAG_UV1_ANY;
     //params.noNorm = true; //sometimes has normal but not always
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex) setLayer(noeMat, material->texture[i++]); //layer texture goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex) setLayer(noeMat, material->texture[i++], i); //layer texture goes here
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -117,7 +119,7 @@ int useShader005(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     params.noSpec = true;
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; // layer map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -125,9 +127,9 @@ inline
 int useShader006(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
     i++; //layer map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -135,7 +137,7 @@ inline
 int useShader007(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -143,9 +145,9 @@ inline
 int useShader010(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex) setLayer(noeMat, material->texture[i++]);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
+    if (i < maxTex) setLayer(noeMat, material->texture[i++], i);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
     return i;
 }
 
@@ -154,7 +156,7 @@ int useShader012(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; //layer texture goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -163,7 +165,7 @@ int useShader016(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; //cube map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -174,7 +176,7 @@ int useShader019(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     i++; //layer map goes here
     i++; //unknown map goes here
     i++; //unknown map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -184,7 +186,7 @@ int useShader020(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; //cube map goes here
     i++; //layer map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -192,8 +194,8 @@ inline
 int useShader033(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -201,9 +203,9 @@ inline
 int useShader036(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
     i++; //layer map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -213,8 +215,8 @@ int useShader042(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; //incidence map goes here
     i++; //layer map goes here
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -223,7 +225,7 @@ int useShader048(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     params.noNorm = true;
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
     return i;
 }
 
@@ -232,7 +234,7 @@ int useShader049(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     params.noNorm = true;
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
     return i;
 }
 
@@ -243,7 +245,7 @@ int useShader065(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; //incidence map goes here
     i++; //unknown map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -252,7 +254,7 @@ int useShader080(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; //specular gradient goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -263,7 +265,7 @@ int useShader082(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; //specular gradient goes here
     i++; //cube map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -273,7 +275,7 @@ int useShader096(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; //specular gradient goes here
     i++; //incidence map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -281,7 +283,7 @@ inline
 int useShader100(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -292,7 +294,7 @@ int useShader160(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     i++; //unknown map goes here
     i++; //unknown map goes here
     i++; //unknown map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -301,7 +303,7 @@ int useShader162(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; //unknown map goes here, env
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -311,7 +313,7 @@ int useShader163(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     params.noNorm = true;
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; // layer map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -319,9 +321,9 @@ inline
 int useShader164(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
     i++; // layer map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -331,7 +333,7 @@ int useShader165(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     params.noNorm = params.noSpec = true;
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; // cube map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -339,11 +341,11 @@ inline
 int useShader166(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, std::vector<uint32_t>& normalMaps) {
     shaderParams params = setParams(material->flag);
     int i = 0;
-    setDiffuse(noeMat, -1);
-    setOpacity(noeMat, material->texture[i]);
-    if (i < maxTex && !params.noSpec)  setSpec(noeMat, material->texture[i++]);
-    if (i < maxTex && !params.noNorm) setNormal(noeMat, material->texture[i++], normalMaps);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    setDiffuse(noeMat, -1, i);
+    setOpacity(noeMat, material->texture[i], i);
+    if (i < maxTex && !params.noSpec)  setSpec(noeMat, material->texture[i++], i);
+    if (i < maxTex && !params.noNorm) setNormal(noeMat, material->texture[i++], i, normalMaps);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -353,7 +355,7 @@ int useShader168(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     params.noNorm = params.noSpec = true;
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -364,7 +366,7 @@ int useShader171(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; // cube map goes here
     i++; // specular gradient goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -373,7 +375,7 @@ int useShader224(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     params.noNorm = params.noSpec = true;
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -386,7 +388,7 @@ int useShader240(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     i++; // layer norm
     i++; // incidence map goes here
     i++; // unknown map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -398,7 +400,7 @@ int useShader241(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     i++; // specular gradient goes here
     i++; // incidence map goes here
     i++; // unknown map goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -407,7 +409,7 @@ int useShader243(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     shaderParams params = setParams(material->flag);
     params.noSpec = true;
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
@@ -417,9 +419,9 @@ int useShader245(MdnMaterial* material, noesisMaterial_t* noeMat, int maxTex, st
     int i = basicShader(material, noeMat, maxTex, normalMaps, params);
     i++; // incidence map goes here
     i++; // layer map goes here
-    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], normalMaps);
+    if (i < maxTex) setSubNormal(noeMat, material->texture[i++], i, normalMaps);
     i++; // 3rd normal goes here
-    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++]);
+    if (i < maxTex && params.hasEnv) setEnv(noeMat, material->texture[i++], i);
     return i;
 }
 
